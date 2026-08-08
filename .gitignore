@@ -1,0 +1,16 @@
+# 运行产物 —— 全部本地生成，不入库
+data/output/
+data/logs/
+data/cache/
+data/flow_history/
+data/watchlist.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 系统
+.DS_Store

@@ -1,0 +1,6 @@
+# 自选池：每行 `代码,名称`
+# 用法：用需求 1/2/4 筛出候选写到 data/watchlist.txt，然后
+#   python3 run.py --task 3 --sentiment-universe watchlist
+# 十几只只要几秒，比全市场 2.2 万次请求快得多，也避开限流。
+600519,贵州茅台
+000001,平安银行
