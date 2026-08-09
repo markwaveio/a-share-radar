@@ -43,7 +43,7 @@ def build(result: ScanResult, run_tag: str, output_dir: Optional[Path] = None) -
     wb = new_workbook()
     write_flat_sheet(wb.create_sheet("成交量异动"), HEADERS, rows, WIDTHS, col_formats=formats)
 
-    # 放量榜：按 spike_ratio 降序，学员日常只看这一页
+    # 放量榜：按 spike_ratio 降序，日常只看这一页
     ranked = sorted(
         (r for r in rows if isinstance(r[5], (int, float))),
         key=lambda r: r[5], reverse=True,

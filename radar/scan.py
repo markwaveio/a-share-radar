@@ -124,7 +124,7 @@ def scan_market(stocks: Optional[List[Stock]] = None) -> ScanResult:
                     result.volume_rows.append(vol_row)
             progress.tick()
 
-    # 按代码排序，保证两次运行的 Excel 行序一致，方便 学员做差异对比
+    # 按代码排序，保证两次运行的 Excel 行序一致，方便做差异对比
     result.kdj_rows.sort(key=lambda r: r["code"])
     result.volume_rows.sort(key=lambda r: r["code"])
     result.elapsed = time.monotonic() - started

@@ -1,6 +1,6 @@
 """指标正确性测试。不需要网络，随时可跑：
 
-    cd 学员&& python3 -m pytest tests -q
+    cd a-share-radar && python3 -m pytest tests -q
     或   python3 tests/test_indicators.py
 """
 from __future__ import annotations

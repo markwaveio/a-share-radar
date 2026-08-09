@@ -228,4 +228,4 @@ token 只花在建和改的时候。
 | `INSTALL.md` | 安装细节与验收清单 |
 | `docs/methodology.md` | **指标口径唯一权威**，代码与它不一致时改代码 |
 | `docs/data-source.md` | 各接口字段顺序与已知故障形态 |
-| `courseware/` | 六讲教学课件，可直接用于培训 |
+| `guide/` | 使用手册，14 节 |
