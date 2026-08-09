@@ -79,9 +79,13 @@ def eastmoney_kline(secid: str, klt: int, limit: int,
     })
     if not isinstance(payload, dict):
         return None
+    # 注意 `or {}`：这台主机"没数据"有两种长相，两天内都观察到过
+    #   {"rc":0,  ..., "data":{"code":"600000","klines":[]}}   业务码正常但列表为空
+    #   {"rc":102,..., "data":null}                            data 直接是 null
+    # 所以不能只判 rc，也不能假设 data 一定是 dict。最终判据只有一个：klines 非空。
     klines = (payload.get("data") or {}).get("klines")
     if not klines:
-        return None  # rc=0 但 klines 为空，说明这台主机没有历史数据权限
+        return None
     return _finalize([line.split(",")[:7] for line in klines])
 
 
