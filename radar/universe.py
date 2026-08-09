@@ -138,24 +138,67 @@ def _apply_filters(stocks: List[Stock]) -> List[Stock]:
     return unique
 
 
-def fetch_index_members(index_secid: str = "1.000300") -> List[Stock]:
+# 指数成分股要用**板块代码**，不是指数代码。
+# `fs=i:1.000300` 返回的是沪深300**指数本身**（1 条记录），不是它的 300 只成分股 ——
+# 这个坑不会报错，只会让需求 3 静默地只查 1 只股票。
+INDEX_BOARD = {
+    "hs300": "BK0500",   # 沪深300
+    "sz50": "BK0611",    # 上证50
+    "zz500": "BK0701",   # 中证500
+}
+
+
+def fetch_index_members(index_key: str = "hs300") -> List[Stock]:
     """指数成分股，用于需求 3 的候选池（默认沪深300）。"""
-    params = {
-        "pn": 1, "pz": 500, "po": 1, "np": 1, "fltt": 2, "invt": 2, "fid": "f12",
-        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
-        "fs": f"i:{index_secid}",
-        "fields": "f12,f13,f14,f2",
-    }
-    payload = None
-    for url in _clist_urls():
-        payload = get_json(url, params)
-        if payload and payload.get("data"):
+    board = INDEX_BOARD.get(index_key, index_key)
+    # 单页上限 100（传 pz=500 也只返回 100），沪深300 要翻 3 页。
+    # 不分页会静默只拿到前 100 只 —— 表看起来正常，但漏了 2/3。
+    members: List[Stock] = []
+    page, total = 1, None
+    while True:
+        params = {
+            "pn": page, "pz": 100, "po": 1, "np": 1, "fltt": 2, "invt": 2, "fid": "f12",
+            "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+            "fs": f"b:{board}",
+            "fields": "f12,f13,f14,f2",
+        }
+        payload = None
+        for url in _clist_urls():
+            payload = get_json(url, params)
+            if payload and payload.get("data"):
+                break
+        if not payload or not payload.get("data"):
+            if page == 1:
+                log.warning("指数成分股拉取失败 %s (板块 %s)", index_key, board)
+                return []
             break
-    if not payload or not payload.get("data"):
-        log.warning("指数成分股拉取失败 %s", index_secid)
-        return []
-    return [
-        Stock(code=str(r["f12"]), name=str(r["f14"]), market=int(r["f13"]),
-              price=float(r["f2"]) if isinstance(r.get("f2"), (int, float)) else 0.0)
-        for r in (payload["data"].get("diff") or [])
-    ]
+
+        data = payload["data"]
+        if total is None:
+            total = data.get("total", 0)
+        rows = data.get("diff") or []
+        if not rows:
+            break
+        members.extend(
+            Stock(code=str(r["f12"]), name=str(r["f14"]), market=int(r["f13"]),
+                  price=float(r["f2"]) if isinstance(r.get("f2"), (int, float)) else 0.0)
+            for r in rows
+        )
+        if len(members) >= (total or 0) or len(rows) < 100:
+            break
+        page += 1
+
+    # 分页边界偶有重复
+    seen = set()
+    unique_members = []
+    for m in members:
+        if m.code not in seen:
+            seen.add(m.code)
+            unique_members.append(m)
+    members = unique_members
+    # 只拿到个位数几乎肯定是表达式写错了（比如误用指数代码），不是真的成分股少
+    if 0 < len(members) < 10:
+        log.warning("指数 %s 只返回 %s 只成分股，疑似表达式有误", index_key, len(members))
+    else:
+        log.info("指数 %s 成分股 %s 只", index_key, len(members))
+    return members

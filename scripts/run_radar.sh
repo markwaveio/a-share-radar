@@ -12,7 +12,16 @@ SESSION="${1:-close}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
 
-PYTHON="${RADAR_PYTHON:-/usr/bin/python3}"
+# 解释器优先级：环境变量 > 项目 .venv > 系统 python3。
+# .venv 是 install.sh 在系统 Python 不允许装包时（PEP 668）建的，
+# launchd 不会继承任何 shell 的 activate 状态，所以必须在这里显式指向它。
+if [ -n "${RADAR_PYTHON:-}" ]; then
+    PYTHON="$RADAR_PYTHON"
+elif [ -x "$PROJECT_DIR/.venv/bin/python3" ]; then
+    PYTHON="$PROJECT_DIR/.venv/bin/python3"
+else
+    PYTHON="$(command -v python3 || echo /usr/bin/python3)"
+fi
 LOG_DIR="$PROJECT_DIR/data/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/radar_$(date +%Y%m%d)_${SESSION}.log"

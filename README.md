@@ -20,22 +20,26 @@
 ## 一分钟上手
 
 ```bash
-git clone <this-repo> a-share-radar && cd a-share-radar
+gh auth login && gh repo clone markwaveio/a-share-radar    # 仓库是 private
+cd a-share-radar
 
-# 1. 链路自检（30 只，约 15 秒）
-python3 run.py --task 1 --limit 30
-
-# 2. 跑全部四个需求
-python3 run.py --task all
-
-# 3. 装定时任务（11:40 午盘批 / 15:15 收盘批）
-./scripts/install_launchd.sh install
+./install.sh          # 一键：装依赖 → 自检 → 抓 30 只验证 → 装定时任务
 ```
 
-依赖：Python 3.9+，`pandas` / `numpy` / `openpyxl` / `requests`（macOS 系统 Python 通常已自带）。
+`install.sh` 七步渐进，任何一步失败都会停下说清原因。依赖它自己处理
+（Homebrew Python 3.12+ 被 PEP 668 挡住时会自动建 `.venv`，无需手动 activate）。
 
-也可以用引导式安装（见 [SKILL.md](SKILL.md)）：在 Claude Code 里说「安装 A股行情雷达」，
-它会检查环境、装依赖、跑自检、装定时任务，并带你读第一份报表。
+装完之后：
+
+```bash
+python3 run.py --task all      # 跑全部四个需求，全市场约 20 分钟
+```
+
+也可以让 Agent 引导安装（见 [SKILL.md](SKILL.md)）：在 Claude Code 里说
+「安装 A股行情雷达」。它比脚本多做三件事——带你**对照行情软件验证 KDJ 准确性**、
+解释日志里的每个异常、带你读第一份报表。
+
+完整的安装方式（含 SSH 和离线包）见 [INSTALL.md](INSTALL.md)。
 
 ---
 

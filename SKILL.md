@@ -35,6 +35,19 @@ description: Install, run, and operate the A-Share Radar — an automated A-shar
 
 按顺序执行，**每一步通过再做下一步**。任何一步失败就停下来告诉用户具体原因，不要跳过。
 
+### 步骤 0：确认代码已在本机
+
+仓库是 private 的，全新机器要先解决 clone 认证。如果用户还没拿到代码：
+
+```bash
+gh auth login          # GitHub.com → HTTPS → Authenticate Git: Yes → 浏览器授权
+gh auth status         # 必须看到 ✓ Logged in，看到 X 就是没成功
+gh repo clone markwaveio/a-share-radar && cd a-share-radar
+```
+
+⚠️ 中途断掉的 `gh auth login` 会写下账号信息但不写 token，看起来像成功了实际会 401。
+**一定要让用户跑 `gh auth status` 确认。** 详见 `INSTALL.md` 第一步的三种方式。
+
 ### 步骤 1：环境检查
 
 ```bash
@@ -43,8 +56,15 @@ python3 -c "import pandas, numpy, openpyxl, requests; print('依赖齐全')"
 ```
 
 - Python 需要 3.9+
-- 缺依赖就 `python3 -m pip install -r requirements.txt`
-- macOS 系统自带的 python3 通常已有这些包，先检查再装，别无脑安装
+- 缺依赖**不要直接 `pip install`**，跑 `./install.sh` 让它处理
+
+**为什么**：Homebrew 的 Python 3.12+ 是 PEP 668 externally-managed，
+`pip install` 会直接报 `error: externally-managed-environment`。
+`install.sh` 会按 直装 → `--user` → 建 `.venv` 三段回退自动处理。
+
+绝对不要建议用户加 `--break-system-packages` —— 那会污染 Homebrew 管理的环境。
+
+建了 `.venv` 之后不需要手动 activate，`run.py` 和 `run_radar.sh` 都会自动认它。
 
 ### 步骤 2：网络连通性
 

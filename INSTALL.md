@@ -1,45 +1,150 @@
 # 安装与验收
 
-## 三种安装方式
+在一台全新的 Mac 上，从零到自动出报表约 10 分钟。
 
-### 方式 1：一键脚本（推荐）
+---
+
+# 第一步：拿到代码
+
+仓库是 **private** 的，clone 需要认证。三选一。
+
+## 方式 A：`gh` 认证（推荐，最省事）
 
 ```bash
-git clone <this-repo> a-share-radar && cd a-share-radar
+brew install gh          # 没装过 gh 的话
+gh auth login
+# 选：GitHub.com → HTTPS → Authenticate Git: Yes → Login with a web browser
+# 记下 8 位配对码，回车开浏览器，粘贴，点 Authorize
+
+gh auth status           # 必须看到 ✓ Logged in，看到 X 就是没成功
+gh repo clone markwaveio/a-share-radar
+cd a-share-radar
+```
+
+⚠️ **`gh auth status` 这一步不要跳过。** 中途断掉的 `gh auth login` 会写下账号信息
+但不写 token，看起来像成功了，实际 clone 会 401。
+
+## 方式 B：SSH 密钥
+
+适合这台机器以后要频繁推代码。
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/github -N "" -C "$(whoami)@$(hostname -s)"
+cat ~/.ssh/github.pub    # 复制整行
+```
+
+粘到 https://github.com/settings/keys → New SSH key → 类型选 **Authentication Key**
+（不是 Signing Key，后者不能 push）。然后：
+
+```bash
+cat >> ~/.ssh/config <<'EOF'
+
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+
+ssh -T git@github.com    # 应该看到 Hi <你的用户名>!
+git clone git@github.com:markwaveio/a-share-radar.git
+cd a-share-radar
+```
+
+## 方式 C：直接下载压缩包
+
+不打算在这台机器上改代码时最省事。
+
+```bash
+gh release download        # 有 release 的话
+# 或者网页版 Code → Download ZIP，解压后 cd 进去
+```
+
+代价：拿不到 git 历史，以后更新要重新下载。
+
+---
+
+# 第二步：安装
+
+## 方式 1：一键脚本（推荐）
+
+```bash
 ./install.sh
 ```
 
-脚本会依次做：Python 版本检查 → 依赖安装 → 数据源连通性 → 指标自检 →
-链路自检（抓 30 只） → 装 launchd 定时任务 → 打印下一步。
+七步渐进，**任何一步失败都会停下说清原因，不会静默跳过**：
 
-**任何一步失败都会停下并说清原因，不会静默跳过。**
-
-只想体检不改任何东西：
-
-```bash
-./install.sh --check      # 只检查，不装依赖、不装定时任务
-./install.sh --no-cron    # 装但不加定时任务
+```
+1 Python 版本 → 2 依赖 → 3 数据源连通性 → 4 指标自检（离线）
+→ 5 链路自检（抓 30 只）→ 6 定时任务 → 7 打印下一步
 ```
 
-### 方式 2：引导式安装（Claude Code）
+常用变体：
 
-把仓库放进 skills 目录后，直接说：
+```bash
+./install.sh --check      # 只体检，不装依赖、不装定时任务、不改任何东西
+./install.sh --no-cron    # 装但不加定时任务
+RADAR_PYTHON=/opt/homebrew/bin/python3.12 ./install.sh   # 指定解释器
+```
+
+### 依赖它会自己处理
+
+脚本按 **直装 → `--user` → 建 `.venv`** 三段回退。
+
+这一段是有实际原因的：**Homebrew 的 Python 3.12+ 是 PEP 668 externally-managed**，
+`pip install` 会直接报 `error: externally-managed-environment`。
+脚本这时会在项目里建 `.venv` 并装进去，而不是用 `--break-system-packages` 污染系统环境。
+
+建了 `.venv` 之后**不需要手动 activate** —— `run.py`、`scripts/run_radar.sh`
+和 launchd 都会自动认它。
+
+## 方式 2：让 Agent 引导安装（Claude Code）
+
+把仓库目录加进 Claude Code 的工作区，或把 `SKILL.md` 放进 skills 目录，然后直接说：
 
 ```
 安装 A股行情雷达
 ```
 
-它会按 `SKILL.md` 的流程走一遍，包括教你怎么验证数据可信、怎么读第一份报表。
+它会按 `SKILL.md` 的流程走完整个安装，并且比脚本多做三件事：
 
-### 方式 3：手动
+1. **数据可信度验证** —— 带你挑几只股票和自己的行情软件对照 KDJ，
+   这一步脚本做不了，但它是最重要的一步
+2. **解释每个异常** —— 比如日志里出现"数据源 eastmoney 熔断"是正常的，
+   会告诉你为什么
+3. **带你读第一份报表** —— 四张表的阅读顺序、哪些数不能信
+
+日常也可以直接问它：「今天哪些板块资金在流入」「为什么这一列是空的」「定时任务没跑」。
+
+## 方式 3：手动
+
+想清楚每一步在做什么时用这个。
 
 ```bash
-python3 -m pip install -r requirements.txt
-python3 tests/test_indicators.py          # 必须 11 个全绿
-python3 run.py --task 1 --limit 30        # 链路自检
-python3 run.py --task all                 # 全市场
-./scripts/install_launchd.sh install      # 定时任务
+# 1. 依赖。系统 python3 通常可以直装；被 PEP 668 挡住就用 venv
+python3 -m pip install -r requirements.txt \
+  || python3 -m pip install --user -r requirements.txt \
+  || { python3 -m venv .venv && .venv/bin/python3 -m pip install -r requirements.txt; }
+
+# 2. 指标自检（不需要网络），必须 11 个全绿
+python3 tests/test_indicators.py
+
+# 3. 数据源连通性。只要腾讯是 200 就能跑
+curl -s -o /dev/null -w "腾讯 %{http_code}\n" \
+  'https://ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh600000,day,,,3,qfq'
+
+# 4. 链路自检
+python3 run.py --task 1 --limit 30
+
+# 5. 全市场（25~35 分钟）
+python3 run.py --task all
+
+# 6. 定时任务
+./scripts/install_launchd.sh install
 ```
+
+建了 `.venv` 的话，上面的 `python3` 全部换成 `.venv/bin/python3`。
 
 ---
 
@@ -47,10 +152,32 @@ python3 run.py --task all                 # 全市场
 
 | 项 | 要求 | 备注 |
 |---|---|---|
-| Python | 3.9+ | macOS 系统自带的 `/usr/bin/python3` 可以直接用 |
-| 依赖 | pandas / numpy / openpyxl / requests | 系统 Python 通常已自带，先检查再装 |
+| Python | 3.9+ | macOS 自带的 `/usr/bin/python3` 就够（14/15 是 3.9.6） |
+| 依赖 | pandas / numpy / openpyxl / requests | **全新机器没有**，`install.sh` 会自动装 |
 | 网络 | 能访问腾讯或东财行情接口 | 有多源降级，一个通就能跑 |
 | 定时 | macOS launchd | 其他系统用 cron 调 `scripts/run_radar.sh` |
+| 磁盘 | 约 500MB | 依赖 ~300MB，请求缓存跑一次全市场约 260MB（30 分钟后失效） |
+
+### 关于 Python 版本的选择
+
+| 解释器 | 能不能直接装依赖 | 建议 |
+|---|---|---|
+| `/usr/bin/python3`（系统自带 3.9） | 可以（必要时加 `--user`） | **默认用这个，最省事** |
+| Homebrew `python@3.11` | 可以 | 也行 |
+| Homebrew `python@3.12` 及以上 | **不行** —— PEP 668 externally-managed | 脚本会自动建 `.venv` |
+
+后者的报错长这样：
+
+```text
+error: externally-managed-environment
+× This environment is externally managed
+```
+
+不是环境坏了，是 Homebrew 刻意禁止往系统 site-packages 里装包。
+`install.sh` 遇到它会自动建项目级 `.venv`，不需要你做任何事。
+
+**不要用 `--break-system-packages` 绕过** —— 那会污染 Homebrew 管理的环境，
+以后 `brew upgrade` 可能把你的包冲掉。
 
 指定 Python 解释器：
 

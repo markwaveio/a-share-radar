@@ -33,7 +33,7 @@ def resolve_universe(mode: Optional[str] = None) -> List[Stock]:
     if mode == "all":
         return fetch_universe()
     if mode == "hs300":
-        members = fetch_index_members("1.000300")
+        members = fetch_index_members("hs300")
         if members:
             return members
         log.warning("沪深300 成分股拉取失败，退回全市场前 300 只")

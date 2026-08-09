@@ -45,22 +45,44 @@ ok "$PYTHON  版本 $PYVER"
 
 # ---------------------------------------------------------------- 2. 依赖
 step "2/7  检查依赖"
-MISSING=$("$PYTHON" - <<'PY'
-import importlib
+
+deps_present() {
+    "$1" - <<'PY' 2>/dev/null
+import importlib.util, sys
 missing = [m for m in ("pandas", "numpy", "openpyxl", "requests")
            if importlib.util.find_spec(m) is None]
-print(" ".join(missing))
+sys.exit(1 if missing else 0)
 PY
-)
-if [ -z "$MISSING" ]; then
+}
+
+# 已有可用解释器就直接用（venv 优先，它是上次安装留下的）
+if [ -x "$PROJECT_DIR/.venv/bin/python3" ] && deps_present "$PROJECT_DIR/.venv/bin/python3"; then
+    PYTHON="$PROJECT_DIR/.venv/bin/python3"
+    ok "使用项目虚拟环境 .venv"
+elif deps_present "$PYTHON"; then
     ok "pandas / numpy / openpyxl / requests 齐全"
 elif [ "$CHECK_ONLY" -eq 1 ]; then
-    warn "缺少：$MISSING（--check 模式不安装）"
+    warn "依赖缺失（--check 模式不安装）"
 else
-    warn "缺少：$MISSING，正在安装"
-    "$PYTHON" -m pip install --quiet -r requirements.txt \
-        || die "依赖安装失败。试试 $PYTHON -m pip install --user -r requirements.txt"
-    ok "依赖安装完成"
+    warn "依赖缺失，开始安装"
+    # 三段式：直装 → --user → 建 venv。
+    # Homebrew 的 Python 3.12+ 是 PEP 668 externally-managed，
+    # 前两种都会被 pip 直接拒绝（error: externally-managed-environment），
+    # 这时唯一干净的办法是建项目级 venv，而不是加 --break-system-packages 去污染系统环境。
+    if "$PYTHON" -m pip install --quiet -r requirements.txt 2>/dev/null; then
+        ok "依赖安装完成（当前环境）"
+    elif "$PYTHON" -m pip install --quiet --user -r requirements.txt 2>/dev/null; then
+        ok "依赖安装完成（--user）"
+    else
+        warn "当前 Python 不允许直接安装（多半是 PEP 668 externally-managed），改建虚拟环境"
+        "$PYTHON" -m venv "$PROJECT_DIR/.venv" || die "创建 .venv 失败"
+        "$PROJECT_DIR/.venv/bin/python3" -m pip install --quiet --upgrade pip 2>/dev/null
+        "$PROJECT_DIR/.venv/bin/python3" -m pip install --quiet -r requirements.txt \
+            || die "在 .venv 里安装依赖仍然失败，请看上面的报错"
+        PYTHON="$PROJECT_DIR/.venv/bin/python3"
+        ok "已创建 .venv 并安装依赖"
+        echo "     ${DIM}后续运行会自动使用它，无需手动 activate${RESET}"
+    fi
 fi
 
 # ---------------------------------------------------------------- 3. 网络
